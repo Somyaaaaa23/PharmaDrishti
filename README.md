@@ -18,6 +18,9 @@ The system integrates:
 
 - Large-scale synthetic persona modeling
 - Multi-factor adoption scoring
+- Regulatory intelligence from FDA Orange Book datasets
+- Market intelligence from NPPA dataset
+- Knowledge graph feature augmentation
 - Gradient-boosted regression (XGBoost)
 - SHAP-based feature attribution
 - Scenario-based pricing simulation
@@ -33,7 +36,6 @@ Predictions are generated in under 5 seconds using a pre-trained model calibrate
 pip install -r requirements.txt
 
 # 2. Run dashboard
-cd pharmadrishti
 streamlit run dashboard.py
 ```
 
@@ -48,10 +50,10 @@ streamlit run dashboard.py
 <td width="50%">
 
 ### 🎯 Multi-Factor Analysis
-- **Disease Match** (35%)
+- **Disease Match** (30%)
 - **Affordability** (25%)
+- **Market Pricing** (20%)
 - **Manufacturing** (15%)
-- **Brand Alignment** (15%)
 - **Risk Tolerance** (10%)
 
 </td>
@@ -78,8 +80,9 @@ streamlit run dashboard.py
 <td width="50%">
 
 ### 🔬 Robust ML Model
-- 50M training samples
-- R² score > 0.85
+- Baseline + KG-enhanced models
+- Leakage-safe feature selection
+- Overfitting/leakage diagnostics
 - XGBoost algorithm
 - Explainable AI (SHAP)
 
@@ -93,11 +96,12 @@ streamlit run dashboard.py
 
 ```mermaid
 graph LR
-    A[Input Medicine Details] --> B[AI Analysis]
-    B --> C[10,000 Personas]
-    C --> D[Suitability Scores]
-    D --> E[Insights & Recommendations]
-    E --> F[Export Results]
+    A[NPPA + Personas + Medicines] --> B[Ingredient Mapping]
+    B --> C[FDA Orange Book Integration]
+    C --> D[Knowledge Graph]
+    D --> E[Graph Feature Extraction]
+    E --> F[Suitability + XGBoost]
+    F --> G[Adoption Prediction + Insights]
 ```
 
 ### 1. Configure Your Medicine
@@ -109,9 +113,9 @@ graph LR
 - Insurance compatibility under schemes
 
 ### 2. AI Analysis
-- Analyzes across 10,000 diverse personas
-- Calculates multi-factor suitability scores
-- Generates segment-level insights
+- Analyzes across persona segments
+- Builds regulatory-market knowledge graph
+- Calculates suitability and graph-augmented predictions
 
 ### 3. Get Results
 - Overall suitability score
@@ -138,6 +142,69 @@ Each interaction encodes:
 - Risk tolerance alignment
 
 The resulting dataset is used to train a supervised regression model to predict adoption suitability score.
+
+### Regulatory + Knowledge Graph Layer
+
+PharmaDrishti integrates:
+
+- `nppaipdms.csv` (market data)
+- `standardized_data/products_standardized.csv`
+- `standardized_data/patents_standardized.csv`
+- `standardized_data/exclusivity_standardized.csv`
+- `standardized_data/reference_standardized.csv`
+
+Knowledge graph nodes include Drug, Ingredient, Manufacturer, Patent, and Exclusivity entities. Graph-derived features (e.g., competitor count and protection horizon) are appended to training data for the KG-enhanced model.
+
+---
+
+## 🧪 Training & Diagnostics Workflow
+
+### 1) Baseline model training
+
+```bash
+python train_model.py
+```
+
+### 2) KG-enhanced training (expanded personas + full medicines)
+
+```bash
+python - <<'PY'
+from kg_enhanced_training import run_pipeline
+run_pipeline(
+    base_dir='.',
+    persona_target_count=1000,
+    persona_file='indian_healthcare_personas_expanded.json',
+    n_personas=None,
+    n_medicines=5000,
+    outlier_method='iqr',
+    outlier_strategy='flag',
+)
+PY
+```
+
+### 3) Overfitting / leakage diagnostics
+
+```bash
+python overfitting_diagnostics.py --mode baseline --base-dir . --model-path models/adoption_model.pkl --persona-file indian_healthcare_personas_expanded.json --n-personas 1000 --n-medicines 1000
+python overfitting_diagnostics.py --mode kg_enhanced --base-dir . --model-path models/adoption_model_kg_enhanced.pkl --persona-file indian_healthcare_personas_expanded.json --n-personas 1000 --n-medicines 1000
+```
+
+Diagnostics include train/test gap, 5-fold CV, learning curves, target-shuffle leakage test, feature correlations, SHAP importance, and residual analysis.
+
+---
+
+## 🖼️ Research Outputs
+
+Generated in `outputs/`:
+
+- `graph_summary_metrics.png` (Table 1-ready summary)
+- `table2_ablation_study.png`
+- `table3_dataset_overview.png`
+- `plot4_degree_distribution.png`
+- `plot6_model_performance_comparison.png`
+- `research_paper_sections.txt`
+- `diagnostics/baseline/overfitting_diagnostic_report.json`
+- `diagnostics/kg_enhanced/overfitting_diagnostic_report.json`
 
 ---
 
@@ -191,23 +258,23 @@ Identify optimal target demographics for phased launch
 
 ### Input Parameters
 
-| Parameter | Range | Description |
-|-----------|-------|-------------|
-| **Target Disease** | Dropdown | Disease medicine treats |
-| **Batch Price** | ₹5K-₹500K | Medicine batch price |
-| **Launch Locality** | Dropdown | State or Pan-India |
-| **Brand Strength** | 0.0-1.0 | Generic to Premium |
-| **Side Effect Risk** | 0.0-1.0 | Safe to High Risk |
-| **Manufacturing Score** | 0.0-1.0 | Limited to High Capability |
-| **Insurance under Schemes** | 0.0-1.0 | Not Covered to Fully Covered |
+| Parameter                   | Range     | Description                  |
+| --------------------------- | --------- | ---------------------------- |
+| **Target Disease**          | Dropdown  | Disease medicine treats      |
+| **Batch Price**             | ₹5K-₹500K | Medicine batch price         |
+| **Launch Locality**         | Dropdown  | State or Pan-India           |
+| **Brand Strength**          | 0.0-1.0   | Generic to Premium           |
+| **Side Effect Risk**        | 0.0-1.0   | Safe to High Risk            |
+| **Manufacturing Score**     | 0.0-1.0   | Limited to High Capability   |
+| **Insurance under Schemes** | 0.0-1.0   | Not Covered to Fully Covered |
 
 ### Score Interpretation
 
-| Score Range | Interpretation |
-|-------------|----------------|
-| 70–100 | High predicted adoption suitability |
-| 40–70 | Moderate suitability |
-| 0–40 | Low suitability |
+| Score Range | Interpretation                      |
+| ----------- | ----------------------------------- |
+| 70–100      | High predicted adoption suitability |
+| 40–70       | Moderate suitability                |
+| 0–40        | Low suitability                     |
 
 ---
 
@@ -215,10 +282,12 @@ Identify optimal target demographics for phased launch
 
 1. Persona Generator – Constructs demographic and economic distributions
 2. Interaction Engine – Simulates adoption score per persona-product pair
-3. Model Trainer – Trains gradient boosting regressor
-4. Prediction Engine – Real-time inference
-5. SHAP Analyzer – Feature importance attribution
-6. Insight Layer – LLM-assisted recommendation synthesis
+3. Regulatory Loader – Ingests NPPA + Orange Book datasets
+4. Knowledge Graph Builder – Creates regulatory-market graph
+5. Graph Feature Extractor – Derives competition/protection features
+6. Model Trainer – Trains baseline and KG-enhanced XGBoost regressors
+7. Diagnostics Engine – Overfitting and leakage checks
+8. Prediction Engine – Real-time inference
 
 ```
 ┌─────────────────────────────────────┐
@@ -250,29 +319,30 @@ Identify optimal target demographics for phased launch
 
 ## 📚 Documentation
 
-| Document | Description |
-|----------|-------------|
-| **README.md** | This file - overview |
-| **DASHBOARD_SETUP.md** | Detailed setup guide |
-| **FEATURES.md** | Complete feature docs |
-| **QUICK_REFERENCE.md** | Quick reference card |
-| **PERSONA_GENERATION_SUMMARY.md** | 10K persona statistics |
+| Document                                | Description                  |
+| --------------------------------------- | ---------------------------- |
+| **README.md**                           | This file - overview         |
+| **DASHBOARD_SETUP.md**                  | Detailed setup guide         |
+| **FEATURES.md**                         | Complete feature docs        |
+| **QUICK_REFERENCE.md**                  | Quick reference card         |
+| **METRICS_AND_FORMULAS.md**             | Scoring metrics and formulas |
+| **outputs/research_paper_sections.txt** | Paper-ready section draft    |
 
 ---
 
 ## 🎯 System Metrics
 
-| Metric | Value |
-|--------|--------|
-| Personas | 10,000 |
-| Simulated Interactions | 50,000,000 |
-| Diseases Modeled | 10 |
-| Model Type | XGBoost Regressor |
-| Validation R² | > 0.85 (synthetic dataset) |
-| Training Time | 15–30 minutes |
-| Prediction Latency | < 5 seconds |
-| Model Size | ~50–100 MB |
-| Geographic Modeling | 10 states, 25+ cities |
+| Metric                 | Value                      |
+| ---------------------- | -------------------------- |
+| Personas               | 10,000                     |
+| Simulated Interactions | 50,000,000                 |
+| Diseases Modeled       | 10                         |
+| Model Type             | XGBoost Regressor          |
+| Validation R²          | > 0.85 (synthetic dataset) |
+| Training Time          | 15–30 minutes              |
+| Prediction Latency     | < 5 seconds                |
+| Model Size             | ~50–100 MB                 |
+| Geographic Modeling    | 10 states, 25+ cities      |
 
 ---
 
@@ -331,7 +401,7 @@ streamlit run dashboard.py --server.port 8502
 
 - Current implementation relies on synthetic data simulation
 - Does not model physician prescription behavior
-- Does not incorporate regulatory approval timelines
+- Regulatory coverage depends on source data completeness and mapping quality
 - No real-world post-launch validation integrated yet
 - Economic and insurance parameters are modeled assumptions
 

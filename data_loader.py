@@ -26,6 +26,16 @@ def load_personas(filepath='data/indian_healthcare_personas.json'):
     try:
         # Convert to Path object for better path handling
         file_path = Path(filepath)
+
+        if not file_path.exists():
+            fallback_candidates = [
+                Path(__file__).parent / 'indian_healthcare_personas.json',
+                Path(__file__).parent / 'data' / 'indian_healthcare_personas.json',
+            ]
+            for candidate in fallback_candidates:
+                if candidate.exists():
+                    file_path = candidate
+                    break
         
         # Check if file exists
         if not file_path.exists():

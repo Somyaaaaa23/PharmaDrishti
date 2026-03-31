@@ -10,6 +10,43 @@ import pandas as pd
 import numpy as np
 
 
+TIER_1 = 'Tier 1'
+TIER_2 = 'Tier 2'
+TIER_3 = 'Tier 3'
+TIER_ACCESSIBILITY = {
+    TIER_1: 0.9,
+    TIER_2: 0.7,
+    TIER_3: 0.5,
+}
+
+GENDER_ENCODING = {
+    'Female': 0,
+    'Male': 1,
+}
+
+INCOME_LEVEL_ENCODING = {
+    'Low': 1,
+    'Lower-Middle': 2,
+    'Middle': 3,
+    'Upper-Middle': 4,
+    'High': 5,
+}
+
+DIGITAL_ADOPTION_ENCODING = {
+    'None': 0,
+    'Low': 1,
+    'Medium': 2,
+    'High': 3,
+}
+
+
+def _extract_primary_disease(disease_text):
+    text = str(disease_text or "").strip()
+    if not text:
+        return "Unknown"
+    return text.split(",")[0].strip()
+
+
 def calculate_suitability(persona, medicine, market_data=None):
     """
     Calculate adoption probability for a persona-medicine pair.
@@ -102,13 +139,8 @@ def calculate_suitability(persona, medicine, market_data=None):
             market_pricing_score = 0.5
     
     # 4. Manufacturing (15% weight)
-    tier_accessibility = {
-        'Tier 1': 0.9,
-        'Tier 2': 0.7,
-        'Tier 3': 0.5
-    }
-    city_tier = persona.get('city_tier', 'Tier 3')
-    location_factor = tier_accessibility.get(city_tier, 0.5)
+    city_tier = persona.get('city_tier', TIER_3)
+    location_factor = TIER_ACCESSIBILITY.get(city_tier, 0.5)
     manufacturing = medicine.get('manufacturing_score', 0.5) * location_factor
     
     # 5. Risk Tolerance (10% weight) - Reduced from 25%
@@ -171,73 +203,122 @@ def create_interaction_dataset(personas_df, medicines_df):
     >>> print(f"Generated {len(interactions)} interaction pairs")
     >>> print(f"Expected: {len(personas)} × {len(medicines)} = {len(personas) * len(medicines)}")
     """
-    interactions = []
-    
-    # Encoding mappings for categorical features
-    tier_encoding = {'Tier 1': 1, 'Tier 2': 2, 'Tier 3': 3}
-    
-    # Create all persona-medicine pairs
-    for persona_idx, persona in personas_df.iterrows():
-        for medicine_idx, medicine in medicines_df.iterrows():
-            # Calculate suitability score
-            suitability = calculate_suitability(persona, medicine)
-            
-            # Calculate disease match (binary feature)
-            persona_diseases = str(persona.get('chronic_diseases', '')).lower()
-            target_disease = str(medicine.get('target_disease', '')).lower()
-            disease_match = 1.0 if target_disease in persona_diseases else 0.0
-            
-            # Calculate affordability score
-            monthly_income = persona.get('annual_income_inr', 0) / 12
-            batch_price = medicine.get('batch_price_inr', 0)
-            if monthly_income > 0:
-                affordability = max(0.0, 1.0 - (batch_price / (monthly_income * 100)))
-                affordability = min(1.0, affordability)
-            else:
-                affordability = 0.0
-            
-            # Calculate manufacturing match
-            tier_accessibility = {'Tier 1': 0.9, 'Tier 2': 0.7, 'Tier 3': 0.5}
-            city_tier = persona.get('city_tier', 'Tier 3')
-            location_factor = tier_accessibility.get(city_tier, 0.5)
-            manufacturing_match = medicine.get('manufacturing_score', 0.5) * location_factor
-            
-            # Calculate risk score
-            risk_score = medicine.get('side_effect_risk', 0.5) * persona.get('price_sensitivity_score', 0.5)
-            
-            # Create interaction record with features
-            # Use index-based ID to ensure uniqueness (names can be duplicated)
-            persona_id = f"{persona.get('name', '')}_{persona_idx}"
-            
-            interaction = {
-                # Identifiers
-                'persona_id': persona_id,
-                'medicine_id': medicine.get('medicine_id', ''),
-                
-                # Target variable
-                'suitability_score': suitability,
-                
-                # Persona features
-                'age': persona.get('age', 0),
-                'income': persona.get('annual_income_inr', 0),
-                'city_tier_encoded': tier_encoding.get(persona.get('city_tier', 'Tier 3'), 3),
-                'chronic_condition_count': persona.get('no_of_chronic_conditions', 0),
-                'price_sensitivity': persona.get('price_sensitivity_score', 0.5),
-                'monthly_healthcare_spend': persona.get('monthly_healthcare_spend_inr', 0),
-                
-                # Medicine features
-                'price': medicine.get('batch_price_inr', 0),
-                'side_effect_risk': medicine.get('side_effect_risk', 0.5),
-                'manufacturing': medicine.get('manufacturing_score', 0.5),
-                'insurance_compatibility': medicine.get('insurance_compatibility', 0.5),
-                
-                # Interaction features (calculated scores)
-                'disease_match': disease_match,
-                'affordability': affordability,
-                'manufacturing_match': manufacturing_match,
-                'risk_score': risk_score
-            }
-            
-            interactions.append(interaction)
-    
-    return pd.DataFrame(interactions)
+    # ── Encoding maps ────────────────────────────────────────────────────────
+    tier_encoding = {TIER_1: 1, TIER_2: 2, TIER_3: 3}
+    disease_values = sorted(
+        {
+            _extract_primary_disease(v)
+            for v in personas_df.get('chronic_diseases', pd.Series(dtype=str)).dropna().tolist()
+        }.union(set(medicines_df.get('target_disease', pd.Series(dtype=str)).dropna().tolist()))
+    )
+    disease_encoding = {name: idx + 1 for idx, name in enumerate(disease_values)}
+
+    # ── Vectorised persona feature table ─────────────────────────────────────
+    p = personas_df.copy().reset_index(drop=True)
+    p['_persona_id'] = p.get('name', pd.Series(['P'] * len(p), dtype=str)).astype(str) + '_' + p.index.astype(str)
+    p['_age']                    = pd.to_numeric(p.get('age', 0), errors='coerce').fillna(0)
+    p['_gender_enc']             = p.get('gender', pd.Series(['Female']*len(p))).map(GENDER_ENCODING).fillna(0)
+    p['_income']                 = pd.to_numeric(p.get('annual_income_inr', 0), errors='coerce').fillna(0)
+    p['_income_level_enc']       = p.get('income_level', pd.Series(['Low']*len(p))).map(INCOME_LEVEL_ENCODING).fillna(1)
+    p['_city_tier_enc']          = p.get('city_tier', pd.Series([TIER_3]*len(p))).map(tier_encoding).fillna(3)
+    p['_location_factor']        = p.get('city_tier', pd.Series([TIER_3]*len(p))).map(TIER_ACCESSIBILITY).fillna(0.5)
+    p['_chronic_count']          = pd.to_numeric(p.get('no_of_chronic_conditions', 0), errors='coerce').fillna(0)
+    p['_price_sens']             = pd.to_numeric(p.get('price_sensitivity_score', 0.5), errors='coerce').fillna(0.5)
+    p['_monthly_hc_spend']       = pd.to_numeric(p.get('monthly_healthcare_spend_inr', 0), errors='coerce').fillna(0)
+    p['_insurance']              = pd.to_numeric(p.get('insurance_sum_assured_inr', 0), errors='coerce').fillna(0)
+    p['_insured_flag']           = (p.get('insurance_status', pd.Series(['Uninsured']*len(p))) != 'Uninsured').astype(float)
+    p['_last_visit']             = pd.to_numeric(p.get('last_doctor_visit_months_ago', 0), errors='coerce').fillna(0)
+    p['_digital_enc']            = p.get('digital_health_adoption', pd.Series(['None']*len(p))).map(DIGITAL_ADOPTION_ENCODING).fillna(0)
+    p['_primary_disease']        = p.get('chronic_diseases', pd.Series(['Unknown']*len(p))).apply(_extract_primary_disease)
+    p['_persona_disease_enc']    = p['_primary_disease'].map(disease_encoding).fillna(0)
+    p['_chronic_diseases_lower'] = p.get('chronic_diseases', pd.Series(['']*len(p))).astype(str).str.lower()
+    p['_monthly_income']         = (p['_income'] / 12).clip(lower=1)
+    p['_log_income']             = np.log1p(p['_income'])
+    p['_age_cond']               = p['_age'] * p['_chronic_count']
+    p['_price_sens_x_income']    = p['_price_sens'] * p['_log_income']
+    p['_income_to_ins_ratio']    = p['_insurance'] / p['_income'].clip(lower=1)
+    p['_key'] = 1
+
+    # ── Vectorised medicine feature table ────────────────────────────────────
+    m = medicines_df.copy().reset_index(drop=True)
+    m['_price']               = pd.to_numeric(m.get('batch_price_inr', 0), errors='coerce').fillna(0)
+    m['_side_effect_risk']    = pd.to_numeric(m.get('side_effect_risk', 0.5), errors='coerce').fillna(0.5)
+    m['_manufacturing']       = pd.to_numeric(m.get('manufacturing_score', 0.5), errors='coerce').fillna(0.5)
+    m['_ins_compat']          = pd.to_numeric(m.get('insurance_compatibility', 0.5), errors='coerce').fillna(0.5)
+    m['_target_disease']      = m.get('target_disease', pd.Series(['Unknown']*len(m))).astype(str)
+    m['_med_disease_enc']     = m['_target_disease'].map(disease_encoding).fillna(0)
+    m['_log_price']           = np.log1p(m['_price'])
+    m['_target_disease_lower'] = m['_target_disease'].str.lower()
+    m['_key'] = 1
+
+    # ── Cross join ────────────────────────────────────────────────────────────
+    df = pd.merge(p, m, on='_key', how='inner', validate='many_to_many').drop(columns='_key')
+
+    # ── Suitability formula components (vectorised) ───────────────────────────
+    # disease match
+    df['disease_match'] = df.apply(
+        lambda r: 1.0 if r['_target_disease_lower'] in r['_chronic_diseases_lower'] else 0.0, axis=1
+    )
+    # affordability
+    df['affordability'] = (1.0 - df['_price'] / (df['_monthly_income'] * 100)).clip(0.0, 1.0)
+    # manufacturing match
+    df['manufacturing_match'] = df['_manufacturing'] * df['_location_factor']
+    # risk score
+    df['risk_score'] = df['_side_effect_risk'] * df['_price_sens']
+
+    # ── Suitability score (sigmoid of weighted sum) ───────────────────────────
+    # market_pricing_score proxy: 0.5 (no market data available at this stage)
+    weighted = (
+        0.30 * df['disease_match'] +
+        0.25 * df['affordability'] +
+        0.20 * 0.5 +
+        0.15 * df['manufacturing_match'] +
+        0.10 * (1 - df['risk_score'])
+    )
+    df['suitability_score'] = 1 / (1 + np.exp(-((weighted - 0.5) * 12)))
+
+    # ── Cross features ────────────────────────────────────────────────────────
+    df['price_to_income_ratio']           = df['_price'] / df['_income'].clip(lower=1)
+    df['price_to_monthly_income_ratio']   = df['_price'] / df['_monthly_income']
+    df['price_to_healthcare_spend_ratio'] = df['_price'] / df['_monthly_hc_spend'].clip(lower=1)
+    df['insurance_price_interaction']     = df['_ins_compat'] * df['_price']
+
+    # ── Rename to final schema ────────────────────────────────────────────────
+    result = pd.DataFrame({
+        'persona_id':                    df['_persona_id'],
+        'medicine_id':                   df.get('medicine_id', df.index.astype(str)),
+        'suitability_score':             df['suitability_score'],
+        'age':                           df['_age'],
+        'gender_encoded':                df['_gender_enc'],
+        'income':                        df['_income'],
+        'income_level_encoded':          df['_income_level_enc'],
+        'city_tier_encoded':             df['_city_tier_enc'],
+        'chronic_condition_count':       df['_chronic_count'],
+        'price_sensitivity':             df['_price_sens'],
+        'monthly_healthcare_spend':      df['_monthly_hc_spend'],
+        'persona_disease_encoded':       df['_persona_disease_enc'],
+        'insurance_sum_assured':         df['_insurance'],
+        'insured_flag':                  df['_insured_flag'],
+        'last_doctor_visit_months':      df['_last_visit'],
+        'digital_adoption_encoded':      df['_digital_enc'],
+        'price':                         df['_price'],
+        'side_effect_risk':              df['_side_effect_risk'],
+        'manufacturing':                 df['_manufacturing'],
+        'insurance_compatibility':       df['_ins_compat'],
+        'medicine_disease_encoded':      df['_med_disease_enc'],
+        'log_price':                     df['_log_price'],
+        'log_income':                    df['_log_income'],
+        'price_to_income_ratio':         df['price_to_income_ratio'],
+        'price_to_monthly_income_ratio': df['price_to_monthly_income_ratio'],
+        'price_to_healthcare_spend_ratio': df['price_to_healthcare_spend_ratio'],
+        'income_to_insurance_ratio':     df['_income_to_ins_ratio'],
+        'age_condition_interaction':     df['_age_cond'],
+        'price_sensitivity_x_income':    df['_price_sens_x_income'],
+        'insurance_price_interaction':   df['insurance_price_interaction'],
+        'disease_match':                 df['disease_match'],
+        'affordability':                 df['affordability'],
+        'manufacturing_match':           df['manufacturing_match'],
+        'risk_score':                    df['risk_score'],
+    })
+
+    return result

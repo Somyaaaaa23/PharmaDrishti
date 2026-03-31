@@ -140,7 +140,7 @@ def generate_income_level(tier, age):
         ['Low', 'Lower-Middle', 'Middle', 'Upper-Middle', 'High'],
         p=income_probs
     )
-
+  
 
 def generate_annual_income(income_level):
     """Generate annual income based on income level"""

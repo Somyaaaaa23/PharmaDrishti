@@ -6,3 +6,5 @@ shap
 streamlit
 matplotlib
 seaborn
+networkx
+plotly
