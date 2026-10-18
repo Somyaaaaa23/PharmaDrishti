@@ -95,7 +95,7 @@ fig.add_trace(go.Scatter(x=past.timestamp, y=past.heart_rate, name="HR", line=di
 fig.add_trace(go.Scatter(x=past.timestamp, y=past.hrv_rmssd, name="HRV", line=dict(color="#8719e0")), 2, 1)
 fig.add_trace(go.Bar(x=past.timestamp, y=past.steps, name="Steps", marker_color="#3ebd93"), 3, 1)
 fig.update_layout(height=650, margin=dict(t=40, b=10), legend=dict(orientation="h"))
-st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig, width="stretch")
 
 # ------------------------------------------------------------ what-if
 st.subheader("What-if: simulate an intervention on the twin")
