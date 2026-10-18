@@ -1,13 +1,11 @@
-# PharmaDrishti 💊
-### A Digital Twin of India's Pharmaceutical Market — AI-Powered Drug Adoption Simulation
+# PharmaDrishti GlucoTwin 💊🩸
+### A Type 2 Diabetes Digital Twin — fusing EHR + wearable data to predict glucose spikes 2 hours ahead
 
 <div align="center">
 
-**Digital Twin Challenge 2026 — Prototype & Code Submission**
+**Digital Twin Challenge 2026 (Happiest Health) — Prototype & Code Submission**
 
-**Transform pharmaceutical market research from months to minutes**
-
-📽️ [Demo Video](#-demo-video) · 🏗️ [Architecture Diagram (PDF)](docs/Architecture_Diagram.pdf) · 📑 [Presentation (PDF)](docs/PharmaDrishti_Presentation.pdf) · ⚖️ [MIT License](LICENSE)
+📽️ [Demo Video](#-demo-video) · 🏗️ [Architecture Diagram (PDF)](docs/Architecture_Diagram.pdf) · 📑 [Presentation (PDF)](docs/PharmaDrishti_Presentation.pdf) · ⚖️ [MIT License](LICENSE) · 🧪 [Prototype code](digital_twin/)
 
 </div>
 
@@ -24,11 +22,11 @@
 | Healthcare use case | [Healthcare Use Case](#-healthcare-use-case) |
 | Technical stack | [Technical Stack](#-technical-stack) |
 | AI/ML model & framework details | [AI/ML Model Details](#-aiml-model--framework-details) |
-| 15–20 min demo video (Unlisted YouTube) | [Demo Video](#-demo-video) |
+| Demo video (Unlisted YouTube) | [Demo Video](#-demo-video) |
 | Open-source license | [License](#-open-source-license) · [LICENSE](LICENSE) |
 | Architecture diagram (PDF) | [docs/Architecture_Diagram.pdf](docs/Architecture_Diagram.pdf) |
 | Presentation (PDF) | [docs/PharmaDrishti_Presentation.pdf](docs/PharmaDrishti_Presentation.pdf) |
-| Public accessibility | All files are in this public repository; the demo video is Unlisted (viewable by link, no sign-in needed) |
+| Public accessibility | Public repository; all files are committed here; the video is Unlisted (opens from the link, no sign-in needed) |
 
 ---
 
@@ -55,33 +53,34 @@
 
 ## 🏷️ Project Title
 
-**PharmaDrishti — A Digital Twin of India's Pharmaceutical Market for Predicting Drug Adoption, Affordability and Access**
+**PharmaDrishti GlucoTwin — A Type 2 Diabetes Digital Twin for 2-Hour-Ahead Hyperglycaemia Prediction**
 
 ---
 
 ## ❗ Problem Statement
 
-Launching a medicine in India is a high-risk decision made with slow, expensive and incomplete information:
-
-- Traditional market research for a single drug launch takes **3–6 months** and costs **₹50L–₹1Cr+**.
-- India's patient population is extremely heterogeneous — income, city tier, state, disease burden and insurance coverage (PM-JAY, CGHS, ESIC, private) all change whether a patient can and will adopt a drug.
-- Wrong pricing or wrong target segments lead to **poor adoption, unaffordable therapy for patients, and failed launches**.
-- There is no fast, explainable way to run **"what-if" launch scenarios** (price, coverage, manufacturing reach, safety profile) before committing capital.
+- India has an estimated **101 million people with diabetes** and **136 million with prediabetes** (ICMR-INDIAB, 2023). Type 2 Diabetes is the chosen condition.
+- Diabetes care is **reactive**: patients see a doctor every few months, and HbA1c reflects the past 3 months, not what is happening now.
+- Repeated **post-meal glucose spikes (>180 mg/dL)** drive long-term heart, kidney, eye and nerve complications.
+- CGMs and smartwatches produce continuous data, but no clinical tool **fuses it with the patient's EHR** to warn the doctor **before** an adverse event.
 
 ---
 
 ## 🏥 Healthcare Use Case
 
-PharmaDrishti builds a **digital twin of the Indian patient + pharmaceutical market**: 10,000 synthetic patient personas interacting with 5,000 simulated medicines (50M persona–medicine interactions), grounded in real NPPA price data and FDA Orange Book regulatory data.
+**GlucoTwin** creates a virtual replica of each T2D patient that combines:
 
-Who uses it and for what:
+1. **Static / historical EHR:** demographics, Indian state, BMI, BP, HbA1c, fasting glucose, LDL, **TCF7L2 genetic risk marker**, family history, T2D / hypertension diagnoses, metformin / insulin.
+2. **Dynamic wearable / IoT streams (every 5 min):** CGM glucose, heart rate, HRV (RMSSD), steps, sleep stages, meal carb logs.
 
-1. **Pharma companies / launch teams** — predict adoption suitability of a new drug for each demographic segment in under 5 seconds; pick the best launch states and segments.
-2. **Pricing & access teams** — simulate price points and see the adoption vs. affordability trade-off; find segments priced out of therapy.
-3. **Policy makers / payers** — estimate how insurance-scheme coverage changes uptake and equity of access across city tiers.
-4. **Regulatory & strategy teams** — use the knowledge graph to see patent/exclusivity horizons and competitor counts for an ingredient.
+**Adverse event predicted:** a hyperglycaemic spike (**CGM > 180 mg/dL within the next 2 hours**) while the patient is currently in range.
 
-Example: a diabetes drug priced at ₹30K/batch shows ~82% adoption in Tier-1 high-income segments but a sharp drop in Tier-3, pointing to tiered pricing or local manufacturing partnerships.
+**How a doctor uses it** (`digital_twin/doctor_dashboard.py`):
+- Pick a virtual patient → see the EHR summary next to live CGM, HR/HRV, steps and meals
+- Get a **2-hour spike risk score** and alert level (LOW / MODERATE / HIGH) with suggested action
+- **Replay** the past 7 days to see when and why alerts fire
+- **What-if simulation on the twin:** add a walk or cut carbs and see the predicted risk change before advising the patient
+- Weekly summary: time-in-range, time above 180, mean glucose, average steps
 
 ---
 
@@ -90,34 +89,55 @@ Example: a diabetes drug priced at ₹30K/batch shows ~82% adoption in Tier-1 hi
 | Layer | Technology |
 | --- | --- |
 | Language | Python 3.10+ |
-| ML / Modelling | XGBoost, scikit-learn |
-| Explainability | SHAP |
-| Knowledge Graph | NetworkX (Drug, Ingredient, Manufacturer, Patent, Exclusivity nodes) |
-| Data processing | Pandas, NumPy |
-| Data sources | NPPA price dataset (`nppaipdms.csv`), FDA Orange Book (products, patents, exclusivity), synthetic Indian healthcare personas |
-| Frontend / Dashboard | Streamlit |
-| Visualisation | Plotly, Matplotlib, Seaborn |
-| GenAI insights | Google Gemini (optional, for natural-language recommendations) |
+| Data generation / processing | NumPy, Pandas |
+| ML model | scikit-learn `HistGradientBoostingClassifier`, joblib |
+| Doctor dashboard | Streamlit, Plotly |
+| Docs / diagrams | Matplotlib |
+| Extended PharmaDrishti modules | XGBoost, SHAP, NetworkX knowledge graph (NPPA + FDA Orange Book) for therapy affordability and access |
 
 ---
 
 ## 🤖 AI/ML Model & Framework Details
 
-- **Task:** supervised regression — predict a 0–100 adoption suitability score for a (persona, medicine) pair.
-- **Training data:** synthetic interaction engine (`generate_personas.py`, `medicine_generator.py`, `suitability_calculator.py`) — target built from a multi-factor score: disease match 30%, affordability 25%, market pricing 20%, manufacturing access 15%, risk tolerance 10%.
-- **Models:**
-  - **Baseline:** XGBoost Regressor on persona + medicine features (`train_model.py` → `adoption_model.pkl`).
-  - **KG-enhanced:** same model plus graph-derived features (competitor count, patent/exclusivity protection horizon, manufacturer degree) from the regulatory knowledge graph (`knowledge_graph_builder.py`, `graph_feature_extractor.py`, `kg_enhanced_training.py`).
-- **Feature engineering:** leakage-safe feature selection (`feature_selection.py`), feature fusion (`feature_fusion.py`), IQR outlier flagging (`outlier_detector.py`).
-- **Validation:** train/test gap, 5-fold cross-validation, learning curves, target-shuffle leakage test, residual analysis (`overfitting_diagnostics.py`); model benchmarking (`benchmark_models.py`).
-- **Explainability:** SHAP feature attribution + rule-based decision layer (`decision_layer.py`) and optional Gemini-generated recommendations.
-- **Performance (synthetic validation):** R² > 0.85, prediction latency < 5 s per scenario across all segments.
+**Data (100% synthetic, no real patient data; DPDP Act / HIPAA safe):**
+- `generate_ehr()`: 200 Synthea-style Indian patient records; HbA1c depends on BMI, age, TCF7L2 alleles and family history.
+- `simulate_wearables()`: 7 days per patient at 5-min resolution. Glucose is simulated from meal absorption × insulin resistance (from HbA1c, BMI and medication), minus activity, plus dawn phenomenon, poor-sleep stress and sensor noise. HR and HRV are linked to activity, sleep and glucose.
+
+**Fusion features (at every 5-min step):**
+- 14 wearable features: current glucose, 30/60-min trend, 3-h mean/std, 24-h max, 24-h time-in-range, carbs last 1 h / 3 h, steps last 1 h, HR 1 h, HRV 6 h, deep sleep, hour of day
+- 12 EHR features joined per patient
+
+**Model:** gradient-boosted decision trees (`HistGradientBoostingClassifier`, 300 iterations, class-balanced).
+**Validation:** patient-level split. 20% of virtual patients are never seen in training, which tests generalisation to new twins.
+
+**Results on held-out patients** (`digital_twin/models/metrics.json`):
+
+| Metric | Value |
+| --- | --- |
+| ROC-AUC (EHR + wearable fusion) | **0.96** |
+| PR-AUC | 0.803 |
+| Recall / Precision / F1 (threshold 0.5) | 0.876 / 0.586 / 0.702 |
+| Ablation: wearable-only ROC-AUC | 0.957 |
+| Ablation: EHR-only ROC-AUC | 0.935 |
+| Labelled windows (train / test) | 262,062 / 70,100 |
+| Spike base rate | 13.6% |
+
+Fusing both streams gives the best result. Note that these numbers come from simulated physiology; validation on real open datasets (OhioT1DM, MIMIC-IV) is the next step.
+
+### ▶️ Run the prototype
+
+```bash
+pip install -r requirements.txt
+python digital_twin/twin.py                       # generate synthetic EHR + wearables, train, evaluate (~15 s)
+streamlit run digital_twin/doctor_dashboard.py    # doctor dashboard at http://localhost:8501
+python digital_twin/make_docs.py                  # regenerate architecture + presentation PDFs
+```
 
 ---
 
 ## 📽️ Demo Video
 
-▶️ **15–20 minute demo (Unlisted YouTube):** `<PASTE YOUTUBE LINK HERE>`
+▶️ **Demo video, at least 20 minutes (Unlisted YouTube):** `<PASTE YOUTUBE LINK HERE>`
 
 ---
 
@@ -125,23 +145,27 @@ Example: a diabetes drug priced at ₹30K/batch shows ~82% adoption in Tier-1 hi
 
 📄 **PDF:** [docs/Architecture_Diagram.pdf](docs/Architecture_Diagram.pdf)
 
-![PharmaDrishti Architecture](docs/architecture.png)
+![GlucoTwin Architecture](docs/architecture.png)
 
 ---
 
 ## 📑 Presentation
 
-📄 **PDF:** [docs/PharmaDrishti_Presentation.pdf](docs/PharmaDrishti_Presentation.pdf) — problem, healthcare use case, solution approach, architecture, tech stack, outcomes & results, limitations and roadmap.
+📄 **PDF:** [docs/PharmaDrishti_Presentation.pdf](docs/PharmaDrishti_Presentation.pdf): problem, healthcare use case, data streams, architecture, AI/ML model, outcomes & results, tech stack, limitations and roadmap.
 
 ---
 
 ## ⚖️ Open-source License
 
-This project is released under the **MIT License** — see [LICENSE](LICENSE). Third-party datasets (NPPA, FDA Orange Book) remain subject to their original public terms.
+This project is released under the **MIT License**; see [LICENSE](LICENSE). All patient data in this repository is synthetic. Public datasets used by the extended modules (NPPA, FDA Orange Book) remain subject to their original terms.
 
 ---
 
-## 🎯 Executive Summary
+## ➕ Extended Module: PharmaDrishti Market & Access Intelligence
+
+The repository also contains the original PharmaDrishti engine. It is a population-level simulation of 10,000 Indian healthcare personas that estimates whether patients can afford and access a therapy. On the roadmap, it will recommend affordable treatment options for the patient segments that GlucoTwin flags as high-risk.
+
+### Executive Summary
 
 PharmaDrishti is a simulation-driven pharmaceutical market intelligence system designed to estimate product adoption probability across heterogeneous demographic and economic segments in India.
 
